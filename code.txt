@@ -1,0 +1,62 @@
+const float LENGTH_AXELS = 526;
+const int WHEEL_CIRCUMFERINCE = 996;
+const float WHEEL_RADIUS = WHEEL_CIRCUMFERINCE / (2 * M_PI);
+const float ENCODER_FULL_CIRCLE = 1024 * 4;
+const float RADIANS_PER_COUNT = M_PI * (2 * WHEEL_RADIUS / LENGTH_AXELS)
+/ ENCODER_FULL_CIRCLE;
+const float MMS_4_TICK = M_PI * 2 * WHEEL_RADIUS / ENCODER_FULL_CIRCLE;
+
+struct chair_encs {
+
+int deltaLeft, deltaRight;
+float deltaDistance, deltaHeading, deltaX, deltaY;
+float chair_x, chair_y, chair_heading;
+
+int computeDiff(uint16_t curr, uint16_t prev) {
+int delta = curr - prev;
+// handle rollover of encoders
+if (abs(delta) > (UINT16_MAX + 1) / 2) {
+if (delta < 0) {
+delta += UINT16_MAX + 1; // moving forward
+} else {
+delta -= UINT16_MAX + 1; // moving backward
+}
+}
+return delta;
+}
+
+bool update(coalas_msgs::EncodersOutput encodersOut) {
+static coalas_msgs::EncodersOutput prev_encoders;
+static coalas_msgs::EncodersOutput encoders;
+prev_encoders.left_encoder_pos = encoders.left_encoder_pos;
+prev_encoders.right_encoder_pos = encoders.right_encoder_pos;
+
+encoders.left_encoder_pos = encodersOut.left_encoder_pos;
+encoders.right_encoder_pos = encodersOut.right_encoder_pos;
+int deltaLeft = computeDiff(encoders.left_encoder_pos,
+prev_encoders.left_encoder_pos);
+int deltaRight = computeDiff(encoders.right_encoder_pos,
+prev_encoders.right_encoder_pos);
+
+deltaDistance = 0.5f * (float) (deltaLeft + deltaRight) * MMS_4_TICK;
+deltaHeading = (float) (deltaRight - deltaLeft) * RADIANS_PER_COUNT;
+
+float deltaX = deltaDistance * (float) cos(chair_heading);
+float deltaY = deltaDistance * (float) sin(chair_heading);
+chair_x += deltaX;
+chair_y += deltaY;
+chair_heading += deltaHeading;
+// limit heading to -Pi <= heading < Pi
+if (chair_heading > M_PI)
+chair_heading -= 2 * M_PI;
+else if (chair_heading <= -M_PI)
+chair_heading += 2 * M_PI;
+pubDriveInfo();
+if (DEBUG_MODE)
+ROS_INFO("chair heading %4.2f delta left %d delta right %d",
+chair_heading, deltaLeft, deltaRight);
+
+return true;
+}
+
+} chair_encoders;
